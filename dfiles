@@ -1,0 +1,1122 @@
+#!/bin/bash
+# DFiles
+# Requires: yad, coreutils, gawk, grep, procps, sed, udisks2, findutils, util-linux, fuse3, jmtpfs, adwaita-icon-theme, libnotify-bin, fonts-noto-color-emoji
+export IFS=$'\r\n'
+export YAD_PID=$!
+# creating conf dir
+if [ ! -d $HOME/.config/dfiles ]; then
+    mkdir -p $HOME/.config/dfiles
+fi
+export CONFDIR=$HOME/.config/dfiles
+# create current dir
+if [ ! -f "$CONFDIR"/currentdir ]; then
+    echo $HOME > "$CONFDIR"/currentdir
+fi
+export CURRDIR=$(cat "$CONFDIR"/currentdir)
+# if run with arguments
+if [ $1 ]; then
+    export CURRDIR=$1
+fi
+echo "current dir is $CURRDIR"
+# creating theme file
+if [ ! -f "$CONFDIR"/icon_theme ]; then
+    echo "Adwaita" > "$CONFDIR"/icon_theme
+    echo "22" > "$CONFDIR"/icon_size
+fi
+export DFICON_THEME=$(cat "$CONFDIR"/icon_theme)
+export DFICON_SIZE=$(cat "$CONFDIR"/icon_size)
+export YAD_OPTIONS="--icon-theme=$(cat $CONFDIR/icon_theme) --align=center --text-align=center --buttons-layout=center"
+# creating search file
+[ ! -f "$CONFDIR"/wordtosearch ] && echo "" > "$CONFDIR"/wordtosearch
+# if current dir is empty
+if [ -z $CURRDIR ]; then
+    export CURRDIR=/
+fi
+# double slash fix
+if [[ $(echo $CURRDIR | cut -c2) == "/" ]]; then
+    export CURRDIR=$(echo $CURRDIR | cut -c 2-)
+fi
+# if search word was provided
+if [ $(cat "$CONFDIR"/wordtosearch) ]; then
+    echo "search term was provided"
+    export wordtosearch=$(cat "$CONFDIR"/wordtosearch)
+    echo "$CURRDIR" > "$CONFDIR"/currentdir
+fi # END of search
+# CREATING THE FILE STRUCTURE SORTED AS FOLLOWS:
+# (1) Directories
+# (2) Archives
+# (3) Appimage/ISO/run
+# (4) deb/exe/msi/rpm
+# (5) sh executables
+# (6) Documents
+# (7) Text Files
+# (8) Text without extension
+# (9) Pictures
+# (10) Music
+# (11) Videos
+# (12) All remaining files
+
+# getting the icon names
+FOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "folder.*" | sed '$!d')
+DESKTOPFOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "user-desktop.*" | sed '$!d')
+DOCUMENTSFOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "folder-documents.*" | sed '$!d')
+DOWNLOADSFOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "folder-download.*" | sed '$!d')
+MUSICFOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "folder-music.*" | sed '$!d')
+PICTURESFOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "folder-pictures.*" | sed '$!d')
+PUBLICFOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "folder-publicshare.*" | sed '$!d')
+TEMPLATESFOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "folder-templates.*" | sed '$!d')
+VIDEOSFOLDERICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "folder-videos.*" | sed '$!d')
+ARCHIVEICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "package-x-generic.*" | sed '$!d')
+MEDIAICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "media-optical.*" | sed '$!d')
+EXECUTABLESICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "application-x-executable.*" | sed '$!d')
+DOCUMENTSICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "x-office-document.*" | sed '$!d')
+TEXTICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "text-x-generic.*" | sed '$!d' | sed '$!d')
+IMAGEICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "image-x-generic.*" | sed '$!d')
+AUDIOICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "audio-x-generic.*" | sed '$!d')
+VIDEOICON=$(find $(find /usr/share/icons/$DFICON_THEME -type d \( -iname "*$DFICON_SIZE*" \)) -name "video-x-generic.*" | sed '$!d')
+
+# prints directories only and adds dir icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep '^d' | \
+grep -i "$wordtosearch" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($4, index($4,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$FOLDERICON'")' | \
+sed -n '/^Desktop/{x;d;};1h;1!{x;p;};${x;p;}' | \
+sed "/^Desktop.*/i $DESKTOPFOLDERICON" | \
+sed -n '/^Documents/{x;d;};1h;1!{x;p;};${x;p;}' | \
+sed "/^Documents.*/i $DOCUMENTSFOLDERICON" | \
+sed -n '/^Downloads/{x;d;};1h;1!{x;p;};${x;p;}' | \
+sed "/^Downloads.*/i $DOWNLOADSFOLDERICON" | \
+sed -n '/^Music/{x;d;};1h;1!{x;p;};${x;p;}' | \
+sed "/^Music.*/i $MUSICFOLDERICON"| \
+sed -n '/^Pictures/{x;d;};1h;1!{x;p;};${x;p;}' | \
+sed "/^Pictures.*/i $PICTURESFOLDERICON" | \
+sed -n '/^Public/{x;d;};1h;1!{x;p;};${x;p;}' | \
+sed "/^Public.*/i $PUBLICFOLDERICON"| \
+sed -n '/^Templates/{x;d;};1h;1!{x;p;};${x;p;}' | \
+sed "/^Templates.*/i $TEMPLATESFOLDERICON" | \
+sed -n '/^Videos/{x;d;};1h;1!{x;p;};${x;p;}' | \
+sed "/^Videos.*/i $VIDEOSFOLDERICON" > "$CONFDIR"/dirs
+# prints archive files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(ar|cpio|tar|br|bz2|gz|lz|lz4|lzma|xz|rar|tgz|tar.bz2|tar.xz|zip|tar.gz|7z)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$ARCHIVEICON'")' > "$CONFDIR"/files
+# prints appimage/iso/run files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(iso|appimage|run)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$MEDIAICON'")' >> "$CONFDIR"/files
+# prints deb/exe/msi/rpm files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(deb|rpm|exe|msi)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$ARCHIVEICON'")' >> "$CONFDIR"/files
+# prints executable sh files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(sh)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$EXECUTABLESICON'")' >> "$CONFDIR"/files
+# prints document files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(doc|docx|odt|pdf)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$DOCUMENTSICON'")' >> "$CONFDIR"/files
+# prints text files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(txt|conf|ini|cfg)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$TEXTICON'")' >> "$CONFDIR"/files
+# prints text files without extension and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE -v ".*\.(ar|cpio|tar|br|bz2|gz|lz|lz4|lzma|xz|rar|tgz|tar.bz2|tar.xz|zip|tar.gz|7z|png|jpg|jpeg|gif|iso|appimage|run|doc|docx|odt|pdf|deb|rpm|exe|msi|mp3|wave|ogg|flac|alac|cue|aac|ape|m4a|oga|mogg|opus|wav|wma|webm|3gp|mp4|avi|mov|wmv|flv|mkv|vob|mpg|mpeg|mpv|txt|conf|ini|cfg)" | \
+grep -E -v "*\." | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$TEXTICON'")' >> "$CONFDIR"/files
+# prints image files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(png|jpg|jpeg|svg|gif|xcf)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$IMAGEICON'")' >> "$CONFDIR"/files
+# prints audio files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(mp3|wave|ogg|flac|alac|cue|aac|ape|m4a|oga|mogg|opus|wav|wma)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$AUDIOICON'")' >> "$CONFDIR"/files
+# prints video files and adds icon
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE ".*\.(webm|3gp|mp4|avi|mov|wmv|flv|mkv|vob|mpg|mpeg|mpv)" | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$VIDEOICON'")' >> "$CONFDIR"/files
+# print remining files except identified ones
+ls -l --block-size=M --group-directories-first $CURRDIR | \
+egrep -v '^d' | \
+tail -n +2 | \
+grep -i "$wordtosearch" | \
+grep -iE -v ".*\.(ar|cpio|tar|br|bz2|gz|lz|lz4|lzma|xz|rar|tgz|tar.bz2|tar.xz|zip|tar.gz|7z|png|jpg|jpeg|gif|iso|appimage|run|doc|docx|odt|pdf|deb|rpm|exe|msi|mp3|wave|ogg|flac|alac|cue|aac|ape|m4a|oga|mogg|opus|wav|wma|webm|3gp|mp4|avi|mov|wmv|flv|mkv|vob|mpg|mpeg|mpv|txt|conf|ini|cfg|sh|svg|xcf)" | \
+grep -E "*\." | \
+awk -v m="\x0a" -v N="9" '{$N=m$N; print ORS substr($0, index($0,m)+1); print substr($5, index($5,m)); print substr($6, index($6,m)); print substr($7, index($7,m)); print substr($8, index($8,m))}' | \
+awk '$0=($0?$0:"'$TEXTICON'")' >> "$CONFDIR"/files
+
+# fix wordtosearch blockinh home button
+echo "" > "$CONFDIR"/wordtosearch
+
+function open_with() {
+    IFS=$'\r\n'
+    appname=$(
+    yad --title='📂 Open With' \
+    --form \
+    --width=400 \
+    --undecorated \
+    --separator='' \
+    --item-separator='\n' \
+    --button=$"⚙️ Run" \
+    --field=:CE "$(ls /usr/bin /usr/local/bin)")
+    if [ $? -ne 0 ]; then
+        echo 0 > "$CONFDIR"/openwithclicked
+        exit
+    fi
+    echo $appname > "$CONFDIR"/appname
+    (sleep 2 ; kill -USR1 $YAD_PID)&
+    exec dfiles $(echo $CURRDIR)
+    exit
+}
+
+function search_f() { 
+    IFS=$'\r\n'
+    wordtosearch=$(
+    yad \
+    --entry \
+    --button=$"❌ Cancel":1 \
+    --button=$"🔍 Search":0 \
+    --title=$"🔍 Search for files" \
+    --text=$"Search in directory:\n$CURRDIR")
+    [ $? -ne 0 ] && exit
+    echo "wordtosearch is $wordtosearch"
+    echo $wordtosearch > "$CONFDIR"/wordtosearch
+    exec dfiles $(echo $CURRDIR)
+    exit
+}
+
+function edit_mimetypes() {
+    texttowrite=$(
+    yad \
+    --list \
+    --text=$"Double click the field you want to edit\nmake changes\nhit Enter\nhit Apply Changes" \
+    --no-click \
+    --editable \
+    --print-all \
+    --height=700 \
+    --separator=' ' \
+    --button=$"❌ Cancel":1 \
+    --button=$"🔨 Reset all mimetypes":2 \
+    --button=$"🔨 Reset mimetype for no extension files":3 \
+    --button=$"✔ Apply Changes":0 \
+    --title=$"🗃️ Mimetype Editor" \
+    --column="Extension" \
+    --column="Application" \
+    $(cat "$CONFDIR"/mimetype))
+        yadmimeexitc=$?
+    if [ $yadmimeexitc -eq 0 ]; then
+        echo $texttowrite | \
+        awk '{for(i=2;i<NF;i+=2){$i=$i RS};gsub(RS FS,RS,$0)}1' > "$CONFDIR"/mimetype
+        exit
+    elif [ $yadmimeexitc -eq 2 ]; then
+        echo "" > "$CONFDIR"/mimetype
+        echo "" > "$CONFDIR"/appwithoutextension
+        exit
+    elif [ $yadmimeexitc -eq 3 ]; then
+        echo "" > "$CONFDIR"/appwithoutextension
+        exit
+    fi
+    exit
+}
+
+function file_create() {
+    kill -USR2 $YAD_PID
+    IFS=$'\r\n'
+    filetocreate=$(
+    yad \
+    --entry \
+    --width=500 \
+    --separator='' \
+    --button=$"❌ Cancel":1 \
+    --button=$"✔ Create":0 \
+    --title=$"📝 Create a new file" \
+    --entry-text="NewFile"
+    )
+    if [ $? -eq 1 ] || [ $? -eq 252 ]; then
+        exit
+    fi
+    if [[ $(ls $(echo $CURRDIR) | grep -w $(echo $filetocreate)) ]]; then
+        echo "File with name $(echo $filetocreate) already exists"
+        yad \
+        --form \
+        --width=300 \
+        --button=$"Ok":1 \
+        --title=$"⚠️ File Exist" \
+        --text=$"Filename:\n$(echo $filetocreate)\nalready exists in:\n$(echo $CURRDIR)"
+        exit
+    fi
+    touch $(echo $CURRDIR/)$filetocreate
+    (sleep 1 ; pkill -o -f "DFiles")&
+    exec dfiles $(echo $CURRDIR)
+    exit
+}
+
+function folder_create() {
+    kill -USR2 $YAD_PID
+    IFS=$'\r\n'
+    foldertocreate=$(
+    yad \
+    --entry \
+    --width=500 \
+    --separator='' \
+    --button=$"❌ Cancel":1 \
+    --button=$"✔ Create":0 \
+    --title=$"📁 Create a new folder" \
+    --entry-text="NewFolder"
+    )
+    if [ $? -eq 1 ] || [ $? -eq 252 ]; then
+        exit
+    fi
+    if [[ $(ls $(echo $CURRDIR) | grep -w $(echo $foldertocreate)) ]]; then
+        echo "Folder with name $(echo $foldertocreate) already exists"
+        yad \
+        --form \
+        --width=300 \
+        --button=$"Ok":1 \
+        --title=$"⚠️ File Exist" \
+        --text=$"Filename:\n$(echo $foldertocreate)\nalready exists in:\n$(echo $CURRDIR)"
+        exit
+    fi
+    mkdir -p $(echo $CURRDIR/)$foldertocreate
+    (sleep 1 ; pkill -o -f "DFiles")&
+    exec dfiles $(echo $CURRDIR)
+    exit
+}
+
+function preparing_removable_devices() {  
+    export USBKEYS=($(                     # Declaration of *array* 'USBKEYS'
+    grep -Hv ^0$ /sys/block/*/removable |  # search for *not 0* in `removable` flag of all devices
+    sed s/removable:.*$/device\\/uevent/ | # replace `removable` by `device/uevent` on each line of previous answer
+    xargs grep -H ^DRIVER=sd |             # search for devices drived by `SD`
+    sed s/device.uevent.*$/size/ |         # replace `device/uevent` by 'size'
+    xargs grep -Hv ^0$ |                   # search for devices having NOT 0 size
+    cut -d / -f 4))                        # return only 4th part `/` separated
+    # write names of usb devices to file
+    printf '' > "$CONFDIR"/usbdevices
+    printf '' > "$CONFDIR"/usbdevicestitle
+    printf '' > "$CONFDIR"/usbdevicesmount
+    printf '' > "$CONFDIR"/usbdevicesmountprobe
+    printf '' > "$CONFDIR"/usbdevicesmountpaths
+    for dev in ${USBKEYS[@]} ; do
+        for i in /dev/$dev?*; do udisksctl info -b $i | \
+        grep -w 'MountPoints:' | \
+        awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}' | \
+        sed '1s/./dfiles &/' | \
+        sed -e "s/$/ \&\ sleep 3 ;/"; done >> "$CONFDIR"/usbdevicesmountpaths
+        # getting data for the mounted devices paths list dialog
+        for i in /dev/$dev?*; do udisksctl info -b $i | \
+        grep -w 'Device\|MountPoints' | \
+        awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}' | \
+        awk '$0=($0?$0:"not mounted")'; done >> "$CONFDIR"/usbdevicesmount
+        # getting the paths of the mounted devices
+        for i in /dev/$dev?*; do udisksctl info -b $i | \
+        grep -w 'MountPoints:' | \
+        awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}'; done >> "$CONFDIR"/usbdevicesmountprobe
+        lsblk -o KNAME,SIZE,VENDOR,MODEL | \
+        grep -m1 $dev >> "$CONFDIR"/usbdevicestitle
+        # getting data for 5 fields of the Mounted Devices list dialog
+        lsblk -o KNAME | \
+        grep -m1 $dev >> "$CONFDIR"/usbdevices
+        lsblk -o KNAME,SIZE | \
+        grep -m1 $dev | \
+        awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}' >> "$CONFDIR"/usbdevices
+        lsblk -o KNAME,VENDOR | \
+        grep -m1 $dev | \
+        awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}' >> "$CONFDIR"/usbdevices
+        lsblk -o KNAME,MODEL | \
+        grep -m1 $dev | \
+        awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}' >> "$CONFDIR"/usbdevices
+        if [ $(udisksctl info -b /dev/$dev?* | grep -F "MountPoints:" | awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}') ]; then
+            echo "mounted" >> "$CONFDIR"/usbdevices
+        else
+            echo "not mounted" >> "$CONFDIR"/usbdevices
+        fi
+    done
+}
+function removable_devices() {
+    preparing_removable_devices
+    # if no USB devices found
+    if [ -z $(cat "$CONFDIR"/usbdevices) ]; then
+        yad \
+        --form \
+        --button=$"❌ Close":1 \
+        --title=$"⚠️ No USB Devices Found" \
+        --text=$"\n\n\n  It looks like there is no USB Device connected!  "
+        exit
+    fi      
+    IFS=$'\r\n'
+    devicetomount=$(
+    yad \
+    --list \
+    --no-markup \
+    --width=330 \
+    --height=200 \
+    --no-headers \
+    --separator='' \
+    --grid-lines=hor \
+    --print-column=1 \
+    --button=$"❌ Close":1 \
+    --button=$"💽 Mount Selected":0 \
+    --button=$"💽 Unmount Selected":2 \
+    --button=$"❎ PowerOff Selected":10 \
+    --button=$"📌 Mounted Devices":4 \
+    --title=$"💽 DFiles - Removable USB Device Manager" \
+    --column=$"":TEXT \
+    --column=$"":TEXT \
+    --column=$"":TEXT \
+    --column=$"":TEXT \
+    --column=$"":TEXT $(cat "$CONFDIR"/usbdevices))
+    yaddevexitc=$?
+    echo "devicetomount is $devicetomount and yaddevexitc is $yaddevexitc"
+    if [ $yaddevexitc -eq 1 ] || [ $yaddevexitc -eq 252 ]; then
+        exit
+    elif [ $yaddevexitc -eq 0 ]; then # mount selected
+        echo "device to mount is /dev/$devicetomount"
+        # kill the options dialog
+        ps axf | \
+        grep "DFiles Options" | \
+        grep -v grep | \
+        awk '{print "kill -USR2 " $1}' |  bash
+        for i in /dev/$devicetomount?*; do udisksctl mount -b $i; done
+        preparing_removable_devices
+        # appends exit
+        sed -i -e '$aexit' "$CONFDIR"/usbdevicesmountpaths
+        # removes all lines that start with ' &'
+        sed -i '/^ &/d' "$CONFDIR"/usbdevicesmountpaths
+        notify-send --expire-time=4000 "💽 Device: /dev/$devicetomount mounted successfully!" ;
+        # opens the mounted location
+        source "$CONFDIR"/usbdevicesmountpaths
+        exit
+    elif [ $yaddevexitc -eq 2 ]; then # unmount selected
+        echo "device to unmount is /dev/$devicetomount"
+        # check if mounted
+        if [ -z $(udisksctl info -b /dev/$devicetomount?* | grep -w 'MountPoints:' | awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}') ]; then
+            yad \
+            --form \
+            --width=300 \
+            --button=$"❌ Close":1 \
+            --title=$"⚠️ Devices Not Mounted" \
+            --text=$"\n\n  /dev/$devicetomount is not mounted!  "
+            exit
+        fi  
+        # kill the options dialog
+        ps axf | \
+        grep "DFiles Options" | \
+        grep -v grep | \
+        awk '{print "kill -USR2 " $1}' | bash
+        sync
+        for i in /dev/$devicetomount?*; do udisksctl unmount -b $i; done
+        notify-send --expire-time=4000 "💽 Device: /dev/$devicetomount unmounted successfully!" ;
+        exit
+    elif [ $yaddevexitc -eq 10 ]; then # poweroff selected
+        # kill the options dialog
+        ps axf | \
+        grep "DFiles Options" | \
+        grep -v grep | \
+        awk '{print "kill -USR2 " $1}' |  bash
+        echo "device to poweroff is /dev/$devicetomount"
+        sync
+        udisksctl power-off -b /dev/$devicetomount
+        notify-send --expire-time=4000 "❎ Device: /dev/$devicetomount powered off successfully!" ;
+        exit
+    elif [ $yaddevexitc -eq 4 ]; then # mounted devices paths
+        echo "display mounted devices paths"
+        # check if mounted
+        if [ -z $(udisksctl info -b /dev/$devicetomount?* | grep -w 'MountPoints:' | awk -v m="\x0a" -v N="2" '{$N=m$N; print substr($0, index($0,m)+1)}') ]; then
+            yad \
+            --form \
+            --width=300 \
+            --button=$"❌ Close":1 \
+            --title=$"⚠️ Devices Not Mounted" \
+            --text=$"\n\n  /dev/$devicetomount is not mounted!  "
+            exit
+        fi
+        # kill the options dialog
+        ps axf | \
+        grep "DFiles Options" | \
+        grep -v grep | \
+        awk '{print "kill -USR2 " $1}' |  bash
+        devicetomountpath=$(
+        yad \
+        --list \
+        --no-markup \
+        --width=500 \
+        --height=200 \
+        --no-headers \
+        --separator='' \
+        --grid-lines=hor \
+        --print-column=2 \
+        --button=$"❌ Close":1 \
+        --button=$"📁 Open Selected":0 \
+        --title=$"📁 DFiles - Removable USB Devices" \
+        --column=$"":TEXT \
+        --column=$"":TEXT $(cat "$CONFDIR"/usbdevicesmount))
+        [ $? -ne 0 ] && exit
+        exec dfiles $devicetomountpath
+    fi
+    exit
+}
+function android_mount() {
+    IFS=$'\r\n'
+    echo "looking for android devices"
+    jmtpfs 2> /tmp/.dfiles_android_mount_test
+    mkdir -p "$HOME"/ANDROID_DEVICE_MOUNTPOINT
+    jmtpfs "$HOME"/ANDROID_DEVICE_MOUNTPOINT
+    # test if device gave write access
+    ls -d "$HOME"/ANDROID_DEVICE_MOUNTPOINT 2> /tmp/.dfiles_android_mount_test2
+    if [ $(cat /tmp/.dfiles_android_mount_test | awk '{print $1}') == "No" ] || [ $(cat /tmp/.dfiles_android_mount_test2 | awk '{print $2}') == "cannot" ]; then
+        fusermount -u $HOME/ANDROID_DEVICE_MOUNTPOINT
+        rmdir "$HOME"/ANDROID_DEVICE_MOUNTPOINT
+        yad \
+        --form \
+        --button=$"❌ Close":1 \
+        --title=$"📱 Android/MTP devices" \
+        --text=$"\n\n\n\n  No Android/MTP Devices Found!  \n  Make sure you allowed file transfer on your phone!  "
+        androidmountexitc=$?
+        if [ $androidmountexitc -eq 1 ] || [ $androidmountexitc -eq 252 ] || [ $androidmountexitc -ne 0 ]; then
+            fusermount -u $HOME/ANDROID_DEVICE_MOUNTPOINT
+            rmdir "$HOME"/ANDROID_DEVICE_MOUNTPOINT
+            exit
+        fi
+    fi
+        # kill the options dialog
+        ps axf | \
+        grep "DFiles Options" | \
+        grep -v grep | \
+        awk '{print "kill -USR2 " $1}' |  bash
+        (sleep 1 ; kill -USR2 $YAD_PID)&
+        (sleep 1 ; pkill -o -f "DFiles")&
+        notify-send --expire-time=4000 "📱 Android device mounted successfully!" ;
+        dfiles "$HOME"/ANDROID_DEVICE_MOUNTPOINT
+    exit
+}
+function android_unmount() {
+    IFS=$'\r\n'
+    if [ ! -d "$HOME"/ANDROID_DEVICE_MOUNTPOINT ]; then
+        yad \
+        --form \
+        --button=$"❌ Close":1 \
+        --title=$"📱 Android/MTP devices" \
+        --text=$"\n\n\n\n  No Android/MTP Devices Found!  \n  Make sure you allowed file transfer on your phone!  "
+        exit
+        fi
+    fusermount -u "$HOME"/ANDROID_DEVICE_MOUNTPOINT
+    notify-send --expire-time=4000 "📱 Android device unmounted successfully!" ;
+    rmdir "$HOME"/ANDROID_DEVICE_MOUNTPOINT
+    (sleep 1 ; kill -USR2 $YAD_PID)&
+    (sleep 1 ; pkill -o -f "DFiles")&
+    exec dfiles
+    exit
+}
+function double_click() {
+    IFS=$'\r\n'
+    echo "" > "$CONFDIR"/wordtosearch
+    unset wordtosearch
+    #cat $CONFDIR/selected_dir | awk '{$1="'$CURRDIR/'" OBS $1} 1' > "$CONFDIR"/full_path
+    echo "$CURRDIR/$(cat $CONFDIR/selected_dir)" > "$CONFDIR"/full_path
+    # check if the selected file is a directory
+    if [[ -d  $(cat "$CONFDIR"/full_path) ]]; then
+        # it's a directory
+        (sleep 1 ; kill -USR2 $YAD_PID)&
+        exec dfiles $(cat "$CONFDIR"/full_path)
+        exit
+    else
+        # it's not a directory
+        # get file extansion
+        cat "$CONFDIR"/selected_dir | sed 's/.*\.//' > "$CONFDIR"/fileextension
+        # creating the mimetyes
+        # if the file has no extension then choose a text editor
+            if [[ $(cat "$CONFDIR"/selected_dir | grep -E "*\." | sed 's/.*\.//') ]]; then
+                echo "file extension found"
+            else
+                if [ ! -f "$CONFDIR"/appwithoutextension ] || [ -z $(cat "$CONFDIR"/appwithoutextension) ]; then
+                    appwithoutextension=$(
+                    yad --title='Select Default Application' \
+                    --form \
+                    --text=$"Choose the default application for no extension files" \
+                    --width=400 \
+                    --undecorated \
+                    --separator='' \
+                    --item-separator='\n' \
+                    --button=$"✔ Accept" \
+                    --field=:CE "$(ls /usr/bin /usr/local/bin)")
+                    [ $? -ne 0 ] && exit
+                    echo $appwithoutextension > "$CONFDIR"/appwithoutextension
+                    echo "executing extensionless file"
+                    $(cat "$CONFDIR"/appwithoutextension) $(cat "$CONFDIR"/full_path)
+                    exit
+                else
+                    echo "executing extensionless file 2"
+                    $(cat "$CONFDIR"/appwithoutextension) $(cat "$CONFDIR"/full_path)
+                    exit
+                fi
+            fi               
+            # checks if the file extension is already in the mimetype file
+            if [[ $(cat "$CONFDIR"/mimetype | grep $(cat "$CONFDIR"/fileextension)) ]]; then
+                # if the etansion is already registered then simply continue
+                echo "continuing"
+            else
+            # if the file extension is not registered then open this dialog
+                appnameforextension=$(
+                yad --title='Select Default Application' \
+                --form \
+                --text=$"Choose the default application for .$(cat $CONFDIR/fileextension)" \
+                --width=400 \
+                --undecorated \
+                --separator='' \
+                --item-separator='\n' \
+                --button=$"✔ Accept" \
+                --field=:CE "$(ls /usr/bin /usr/local/bin)")
+                [ $? -ne 0 ] && exit
+            fi
+            # checks if the mimeytpe file is created for the first time
+            if [ ! -f "$CONFDIR"/mimetype ]; then
+                echo $(cat "$CONFDIR"/fileextension) $appnameforextension > "$CONFDIR"/mimetype
+            else
+                # prevents multipe mimetype file writing
+                if [[ $(cat "$CONFDIR"/mimetype | grep $(cat "$CONFDIR"/fileextension)) ]]; then
+                    echo "continuing 2"
+                else
+                    echo $(cat "$CONFDIR"/fileextension) $appnameforextension >> "$CONFDIR"/mimetype
+                fi
+            fi
+        # executing the file
+        $(cat "$CONFDIR"/mimetype | grep $(cat "$CONFDIR"/fileextension) | awk '{print $2}') $(cat "$CONFDIR"/full_path)
+        
+        exit
+    fi # END of directory check
+    exit
+}
+function go_back() {
+    IFS=$'\r\n'
+    (sleep 1 ; kill -USR2 $YAD_PID)&
+    exec dfiles $(echo $CURRDIR | sed 's%/[^/]*$%/%' | sed 's/.$//')
+    exit
+}
+
+function dfiles_rename_copy_delete() {
+    IFS=$'\r\n'
+    cat $CONFDIR/selected_dir | awk '{$1="'$CURRDIR/'" OBS $1} 1' > "$CONFDIR"/full_path
+    pkill -f "DFiles Options" ;
+    (sleep 2 ; kill -USR1 $YAD_PID)&
+    exec dfiles $(echo $CURRDIR)&
+    exit
+}
+function icon_theme_manager() {
+    IFS=$'\r\n'
+    current_themes=$(ls /usr/share/icons | grep -v $DFICON_THEME | sed "1s/./$DFICON_THEME\n&/")
+    themeandsize=$(
+    yad \
+    --form \
+    --width=400 \
+    --separator=' ' \
+    --item-separator='\n' \
+    --button=$"❌ Close":1 \
+    --button=$"✔ Apply Changes":0 \
+    --title=$"🎭 Icon Theme Manager" \
+    --text=$"Current theme is:\n$(cat $CONFDIR/icon_theme)" \
+    --field=$"Select the icon theme":CB "$current_themes" \
+    --field=$"Select the icon size":CB "$DFICON_SIZE
+    8
+    16
+    22
+    24
+    32
+    48
+    64
+    96
+    256
+    512")
+    yadthemeexitc=$?
+    [ $yadthemeexitc -ne 0 ] && exit
+    # checks is the given size exists for the chosen theme
+    if [ \
+    $(find $(find /usr/share/icons/$(echo $themeandsize | \
+    awk '{print $1}') -type d \( -iname "*$(echo $themeandsize | \
+    awk '{print $2}')*" \)) -name "folder.*") \
+    ] && \
+    [ \
+    $(find $(find /usr/share/icons/$(echo $themeandsize | \
+    awk '{print $1}') -type d \( -iname "*$(echo $themeandsize | \
+    awk '{print $2}')*" \)) -name "user-desktop.*" | sed '$!d') \
+    ] && \
+    [ \
+    $(find $(find /usr/share/icons/$(echo $themeandsize | \
+    awk '{print $1}') -type d \( -iname "*$(echo $themeandsize | \
+    awk '{print $2}')*" \)) -name "package-x-generic.*" | sed '$!d') \
+    ] && \
+    [ \
+    $(find $(find /usr/share/icons/$(echo $themeandsize | \
+    awk '{print $1}') -type d \( -iname "*$(echo $themeandsize | \
+    awk '{print $2}')*" \)) -name "media-optical.*" | sed '$!d') ]; then
+        echo $themeandsize | awk '{print $1}' > "$CONFDIR"/icon_theme
+        echo $themeandsize | awk '{print $2}' > "$CONFDIR"/icon_size
+    else
+        yad \
+        --form \
+        --title=$"⚠️ No such size" \
+        --button="OK":1 \
+        --text=$"\n\n\n\n\nThe theme: \"$(echo $themeandsize | awk '{print $1}')\" does not contain the size: $(echo $themeandsize | awk '{print $2}')\n Please choose a different size"
+        exit
+    fi
+    kill -USR2 $(pgrep -f "DFiles Options") ;
+    (sleep 2 ; kill -USR1 $YAD_PID)&
+    (sleep 1 ; pkill -o -f "DFiles")&
+    exec dfiles $(echo $CURRDIR)&
+    exit
+}
+function dfiles_options() {
+    IFS=$'\r\n'
+    preparing_removable_devices
+    if [[ -z $(cat "$CONFDIR"/usbdevices) ]]; then
+        echo "No USB Devices Found" > "$CONFDIR"/usbdevicestitle2
+    else
+        echo "USB Devices Found" > "$CONFDIR"/usbdevicestitle2
+    fi
+    yad \
+    --form \
+    --width=300 \
+    --button=$"❌ Close":1 \
+    --title="⚙️ DFiles Options" \
+    --field=$"📝 New File Create":FBTN 'bash -c "file_create"' \
+    --field=$"📁 New Folder Create":FBTN "bash -c folder_create" \
+    --field=$"🔀 Rename":FBTN 'bash -c "echo 1 > $CONFDIR/renameclicked && kill -USR1 $(pgrep -f '"'DFiles Options'"')"' \
+    --field=$"💾 Copy":FBTN 'bash -c "echo 1 > $CONFDIR/copyclicked && kill -USR1 $(pgrep -f '"'DFiles Options'"')"' \
+    --field=$"✂️ Cut":FBTN 'bash -c "echo 1 > $CONFDIR/cutclicked && kill -USR1 $(pgrep -f '"'DFiles Options'"')"' \
+    --field=$"🗑️ Delete":FBTN 'bash -c "echo 1 > $CONFDIR/deleteclicked && kill -USR1 $(pgrep -f '"'DFiles Options'"')"' \
+    --field=$"ℹ️ Show File Information":FBTN 'bash -c "echo 1 > $CONFDIR/filesizeclicked && kill -USR1 $(pgrep -f '"'DFiles Options'"')"' \
+    --field=$"📺 Open Terminal Here (foot)":FBTN 'bash -c "kill -USR2 $(pgrep -f \"DFiles Options\") & foot --working-directory=$CURRDIR & exit"' \
+    --field=$"💽 $(cat $CONFDIR/usbdevicestitle | wc -l) $(cat $CONFDIR/usbdevicestitle2)":FBTN "bash -c removable_devices" \
+    --field=$"📱 Mount Android Device":FBTN "bash -c android_mount" \
+    --field=$"📱 Unmount Android Device":FBTN "bash -c android_unmount" \
+    --field=$"🎭 Icon Theme Manager":FBTN "bash -c icon_theme_manager" \
+    --field=$"🗃️ Edit Mimetypes":FBTN "bash -c edit_mimetypes"
+    yaddfoptionsexitc=$?
+    if [ $yaddfoptionsexitc -eq 1 ] || [ $yaddfoptionsexitc -eq 252 ]; then 
+        exit
+    fi
+    dfiles_rename_copy_delete
+    exit
+}
+
+function go_to_path() {
+    IFS=$'\r\n'
+    pathtogoto=$(
+    yad \
+    --form \
+    --width=400 \
+    --undecorated \
+    --separator='' \
+    --item-separator='\n' \
+    --title=$"🌐 Go To Path" \
+    --button=$"❌ Close":1 \
+    --button=$"✔ Open":0 \
+    --field=:TEXT $(echo $CURRDIR))
+    [ $? -ne 0 ] && exit
+    if [ ! -d $pathtogoto ]; then
+        yad \
+        --form \
+        --button=$"❌ Close":1 \
+        --title=$"⚠️ No such path" \
+        --text=$"\n\n\nThere is no such path:\n\n$pathtogoto\n\nMake sure you typed the path correctly!"
+        exit
+    fi
+    (sleep 2 ; kill -USR2 $YAD_PID)&
+    exec dfiles $(echo $pathtogoto)&
+    exit
+}
+export -f go_back
+export -f search_f
+export -f open_with
+export -f go_to_path
+export -f file_create
+export -f double_click
+export -f android_mount
+export -f folder_create
+export -f dfiles_options
+export -f edit_mimetypes
+export -f android_unmount
+export -f removable_devices
+export -f icon_theme_manager
+export -f dfiles_rename_copy_delete
+export -f preparing_removable_devices
+
+# main DFiles dialog
+yad \
+    --list \
+    --multiple \
+    --no-markup \
+    --no-escape \
+    --no-headers \
+    --height=1000 \
+    --separator='' \
+    --grid-lines=hor \
+    --print-column=2 \
+    --search-column=0 \
+    --selectable-labels \
+    --text $(echo $CURRDIR) \
+    --title=$"📁 DFiles ( $(ls $CURRDIR | wc -l) Files in $CURRDIR )" \
+    --select-action="echo" > "$CONFDIR"/selected_dir \
+    --dclick-action='bash -c "echo %s | sed -r '"'"'s/\s+\S+\s+\S+\s+\S+\s+\S+\s*$//'"'"' | sed -e '"'"'s/^[ \t]*//'"'"' > $CONFDIR/selected_dir ; double_click"' \
+    --button=$"❌ Close":1 \
+    --button=$"🏠 Home":'bash -c "(sleep 1 ; kill -USR2 $YAD_PID) & dfiles $HOME"' \
+    --button=$"👈🏻 Back":'bash -c "echo $CURRDIR | sed '"'"'s%/[^/]*$%/%'"'"' | sed '"'"'s/.$//'"'"' > $CONFDIR/currentdir ; go_back"' \
+    --button=$"📂 Open with":'bash -c "echo 1 > $CONFDIR/openwithclicked && open_with"' \
+    --button=$"🔍 Search":'bash -c "search_f"' \
+    --button=$"🌐 Go To":'bash -c "go_to_path"' \
+    --button=$"⚙️ Options":'bash -c "dfiles_options"' \
+    --column=$"Icon":IMG \
+    --column=$"Name":TEXT \
+    --column=$"Size":TEXT \
+    --column=$"Month":TEXT \
+    --column=$"Date":TEXT \
+    --column=$"Time":TEXT $(cat "$CONFDIR"/dirs "$CONFDIR"/files)
+    yadexitcode=$?
+function check_if_nothing_selected() {
+    # check if no file/folder selected
+    if [ -z $(basename $(cat "$CONFDIR"/full_path | sed -n 1p)) ]; then
+        yad \
+        --form \
+        --width=200 \
+        --button=$"Ok":0 \
+        --title=$"⚠️ No File Selected" \
+        --text="Select a file/folder first!"
+        echo 0 > $CONFDIR/cutclicked
+        echo 0 > $CONFDIR/copyclicked
+        echo 0 > $CONFDIR/renameclicked
+        echo 0 > $CONFDIR/deleteclicked
+        echo 0 > $CONFDIR/openwithclicked
+        echo 0 > $CONFDIR/filesizeclicked
+        exit
+    fi
+}
+export -f check_if_nothing_selected
+# close
+if [ $yadexitcode -eq 1 ] || [ $yadexitcode -eq 252 ]; then
+    pkill -f "DFiles Options"
+    echo $HOME > "$CONFDIR"/currentdir
+    echo "" > "$CONFDIR"/wordtosearch
+    unset wordtosearch
+    exit
+fi
+# open with and 0 exit code
+if [ $yadexitcode -eq 0 ] && [ $(cat $CONFDIR/openwithclicked) -eq 1 ]; then
+    if [ -z $(cat "$CONFDIR"/appname) ]; then
+        yad \
+        --form \
+        --button=$"Ok":0 \
+        --title=$"⚠️ No Application Selected" \
+        --text="Select an application to run first!"
+        echo 0 > $CONFDIR/cutclicked
+        echo 0 > $CONFDIR/copyclicked
+        echo 0 > $CONFDIR/renameclicked
+        echo 0 > $CONFDIR/deleteclicked
+        echo 0 > $CONFDIR/openwithclicked
+        echo 0 > $CONFDIR/filesizeclicked
+        exit
+    fi
+    awk '{print ENVIRON["CURRDIR"]"/"$0}' "$CONFDIR"/selected_dir > "$CONFDIR"/full_path
+    dirname $(cat $CONFDIR/full_path) > "$CONFDIR"/currentdir
+    echo 0 > "$CONFDIR"/openwithclicked
+    # running the file
+    $(cat "$CONFDIR"/appname) $(cat "$CONFDIR"/full_path)
+    exit
+fi
+# delete and 0 exit code
+if [ $yadexitcode -eq 0 ] && [ $(cat $CONFDIR/deleteclicked) -eq 1 ]; then
+    awk '{print ENVIRON["CURRDIR"]"/"$0}' "$CONFDIR"/selected_dir > "$CONFDIR"/full_path
+    check_if_nothing_selected
+    yad \
+    --form \
+    --button=$"❌ Cancel":1 \
+    --button=$"🗑️ Delete":0 \
+    --buttons-layout=center \
+    --title=$"🗑️ Removing files" \
+    --text=$"\n	The following files will be removed:	\n\n$(cat $CONFDIR/full_path)\n\n Are you sure?"
+    remexitcode=$?
+    echo "remexitcode is $remexitcode"
+    if [ $remexitcode -eq 1 ] || [ $remexitcode -eq 252 ] || [ $remexitcode -ne 0 ]; then
+        echo 0 > "$CONFDIR"/deleteclicked
+        exit
+    fi
+    # deleting the file
+    echo 0 > "$CONFDIR"/deleteclicked
+    rm -r $(cat "$CONFDIR"/full_path)
+    (sleep 1 ; pkill -o -f "DFiles")&
+    exec dfiles $(echo $CURRDIR)
+    exit
+fi
+# File Info and 0 exit code
+if [ $yadexitcode -eq 0 ] && [ $(cat $CONFDIR/filesizeclicked) -eq 1 ]; then
+    awk '{print ENVIRON["CURRDIR"]"/"$0}' "$CONFDIR"/selected_dir > "$CONFDIR"/full_path
+    check_if_nothing_selected
+    if [ -d $(cat "$CONFDIR"/full_path) ]; then
+        DFILESTYPE="Directory"
+        DFILEICON=/usr/local/share/icons/dfiles/folder.png
+    else
+        DFILESTYPE="File"
+        DFILEICON=/usr/local/share/icons/dfiles/file.png
+    fi
+    # get the size
+    (du --total --human-readable $(cat $CONFDIR/full_path) | sed '$!d' | awk '{print $1}' > /tmp/.dfilesfilesize) |
+    yad \
+    --pulsate \
+    --progress \
+    --auto-kill \
+    --auto-close \
+    --no-buttons \
+    --title=$"⏳️ Please Wait..." \
+    --text=$"\nPlease wait\nGetting Information about: $(cat $CONFDIR/selected_dir)" \
+    --progress-text="getting ready ..."
+    yad \
+    --form \
+    --image="$DFILEICON" \
+    --width=500 \
+    --height=300 \
+    --text-align=left \
+    --button=$"✔ Ok":0 \
+    --title=$"ℹ️ File Information" \
+    --text=$"
+    Name:   $(basename $(cat $CONFDIR/full_path))\n
+    Path:   $(dirname $(cat $CONFDIR/full_path))\n
+    Type:   $DFILESTYPE\n
+    Size:   $(cat /tmp/.dfilesfilesize)
+    "
+    echo 0 > $CONFDIR/filesizeclicked
+    exit
+fi
+# rename and 0 exit code
+if [ $yadexitcode -eq 0 ] && [ $(cat $CONFDIR/renameclicked) -eq 1 ]; then
+    awk '{print ENVIRON["CURRDIR"]"/"$0}' "$CONFDIR"/selected_dir > "$CONFDIR"/full_path
+    check_if_nothing_selected
+    filetorename=$(
+    yad \
+    --form \
+    --separator='' \
+    --button=$"❌ Cancel":1 \
+    --button=$"✔ Rename":0 \
+    --title=$"🔀 Rename the File" \
+    --field= $(basename $(cat "$CONFDIR"/full_path))) 
+    if [ $? -eq 1 ] || [ $? -eq 252 ] || [ -z $filetorename ]; then
+        echo "rename exiting ..."
+        echo 0 > "$CONFDIR"/renameclicked
+        exit
+    fi
+    # current file name
+    cat "$CONFDIR"/full_path
+    # new file name
+    echo $CURRDIR/$filetorename 
+    echo 0 > "$CONFDIR"/renameclicked
+    # renaming the file
+    mv --no-clobber $(cat "$CONFDIR"/full_path) $(echo $CURRDIR/$filetorename)
+    (sleep 1 ; pkill -o -f "DFiles")&
+    exec dfiles $(echo $CURRDIR)
+    exit
+fi
+# copy and 0 exit code
+if [ $yadexitcode -eq 0 ] && [ $(cat $CONFDIR/copyclicked) -eq 1 ]; then
+    awk '{print ENVIRON["CURRDIR"]"/"$0}' "$CONFDIR"/selected_dir > "$CONFDIR"/full_path
+    check_if_nothing_selected
+    # get the path to paste to
+    pathtopaste=$(
+    yad \
+    --file-selection \
+    --height=700 \
+    --width=700 \
+    --directory \
+    --separator='' \
+    --button=$"❌ Cancel":1 \
+    --item-separator='\n' \
+    --button=$"💾 Paste here":0 \
+    --title=$"💾 Copy/Paste Files" \
+    --text=$"Select the destination where to paste the files:\n\n$(cat $CONFDIR/full_path)\n")
+    pathtopasteexitc=$?
+    if [ $pathtopasteexitc -ne 0 ]; then
+        echo 0 > $CONFDIR/copyclicked
+        exit
+    fi
+    echo $pathtopaste > "$CONFDIR"/pathtopaste
+    filestocopyarray=($(cat "$CONFDIR"/selected_dir))
+    numberoffilestocopy=$(cat "$CONFDIR"/selected_dir | wc -l)
+    i=0
+    while [ $i -lt $(echo $numberoffilestocopy) ]; do
+        if [ $(ls $(cat "$CONFDIR"/pathtopaste) | grep -w ${filestocopyarray[$i]}) ]; then
+            echo "${filestocopyarray[$i]} already exists"
+            yad \
+            --form \
+            --width=700 \
+            --button=$"❌ Close":1 \
+            --button=$"⏩ Skip":2 \
+            --button=$"✏️ Overwrite":3 \
+            --title=$"⚠️ File Already Exists!" \
+            --text=$"\n\n\The file:\n\n$(echo ${filestocopyarray[$i]})\n\nalready exists in:\n\n$(cat "$CONFDIR"/pathtopaste)\n\n"
+            yadfiletocopyexitc=$?
+                if [ $yadfiletocopyexitc -eq 1 ]; then
+                    echo "closing"
+                    exit
+                elif [ $yadfiletocopyexitc -eq 2 ]; then
+                    echo "skipping"
+                elif [ $yadfiletocopyexitc -eq 3 ]; then
+                    echo "overwrite"
+                    # overwriting the file
+                    cat "$CONFDIR"/pathtopaste > "$CONFDIR"/currentdir
+                    echo 0 > $CONFDIR/copyclicked
+                    originalfilesize=$(du --total $CURRDIR/${filestocopyarray[$i]} | sed '$!d' | awk '{print $1}')
+                    # copying the file
+                    cp -r $(echo $CURRDIR/${filestocopyarray[$i]}) $(cat "$CONFDIR"/pathtopaste) &
+                    while [ $(pgrep -xn cp) ]; do
+                        sleep 2
+                        copyingfilesize=$(du --total "$(cat "$CONFDIR"/pathtopaste)"/${filestocopyarray[$i]} | sed '$!d' | awk '{print $1}')
+                        sleep 2
+                        echo "$(( $copyingfilesize*100/$originalfilesize ))"
+                        echo "# $(( $copyingfilesize*100/$originalfilesize ))%"
+                    done | \
+                    yad \
+                    --on-top \
+                    --progress \
+                    --width=900 \
+                    --no-buttons \
+                    --title=$"💾 Copying files ..." \
+                    --text="Copying ${filestocopyarray[$i]} to $(cat "$CONFDIR"/pathtopaste)" \
+                    --no-buttons \
+                    --auto-close \
+                    --auto-kill
+                    sync
+                else
+                    exit
+                fi
+        else
+            echo "${filestocopyarray[$i]} is not there, copying $CURRDIR/${filestocopyarray[$i]} to $(cat "$CONFDIR"/pathtopaste)"
+            cat "$CONFDIR"/pathtopaste > "$CONFDIR"/currentdir
+            echo 0 > $CONFDIR/copyclicked
+            originalfilesize=$(du --total $CURRDIR/${filestocopyarray[$i]} | sed '$!d' | awk '{print $1}')
+            # copying the file
+            cp -r $(echo $CURRDIR/${filestocopyarray[$i]}) $(cat "$CONFDIR"/pathtopaste) &
+            while [ $(pgrep -xn cp) ]; do
+                copyingfilesize=$(du --total "$(cat "$CONFDIR"/pathtopaste)"/${filestocopyarray[$i]} | sed '$!d' | awk '{print $1}')
+                echo "$(( $copyingfilesize*100/$originalfilesize ))"
+                echo "# $(( $copyingfilesize*100/$originalfilesize ))%"
+                sleep 0.2
+            done | \
+            yad \
+            --on-top \
+            --progress \
+            --width=900 \
+            --no-buttons \
+            --title=$"💾 Copying files ..." \
+            --text="Copying ${filestocopyarray[$i]} to $(cat "$CONFDIR"/pathtopaste)" \
+            --no-buttons \
+            --auto-close \
+            --auto-kill
+            sync
+        fi
+        i=$(( $i+1 ))
+        sleep 1
+    done
+    exit
+fi
+# cut and 0 exit code
+if [ $yadexitcode -eq 0 ] && [ $(cat $CONFDIR/cutclicked) -eq 1 ]; then
+    awk '{print ENVIRON["CURRDIR"]"/"$0}' "$CONFDIR"/selected_dir > "$CONFDIR"/full_path
+    check_if_nothing_selected
+    # get the path to paste to
+    pathtopaste=$(
+    yad \
+    --file-selection \
+    --height=700 \
+    --width=700 \
+    --directory \
+    --separator='' \
+    --button=$"❌ Cancel":1 \
+    --item-separator='\n' \
+    --button=$"✂️ Move here":0 \
+    --title=$"✂️ Cut/Paste Files" \
+    --text=$"Select the destination where to move the files:\n\n$(cat $CONFDIR/full_path)\n")
+    pathtopasteexitc=$?
+    if [ $pathtopasteexitc -ne 0 ]; then
+        echo 0 > $CONFDIR/cutclicked
+        exit
+    fi
+    echo $pathtopaste > "$CONFDIR"/pathtopaste
+    filestocopyarray=($(cat "$CONFDIR"/selected_dir))
+    numberoffilestocopy=$(cat "$CONFDIR"/selected_dir | wc -l)
+    i=0
+    while [ $i -lt $(echo $numberoffilestocopy) ]; do
+        if [ $(ls $(cat "$CONFDIR"/pathtopaste) | grep -w ${filestocopyarray[$i]}) ]; then
+            echo "${filestocopyarray[$i]} already exists"
+            yad \
+            --form \
+            --width=700 \
+            --button=$"❌ Close":1 \
+            --button=$"⏩ Skip":2 \
+            --title=$"⚠️ File Already Exists!" \
+            --text=$"\n\n\The file:\n\n$(echo ${filestocopyarray[$i]})\n\nalready exists in:\n\n$(cat "$CONFDIR"/pathtopaste)\n\n"
+            yadfiletocopyexitc=$?
+                if [ $yadfiletocopyexitc -eq 1 ]; then
+                    echo "closing"
+                    exit
+                elif [ $yadfiletocopyexitc -eq 2 ]; then
+                    echo "skipping"
+                else
+                    exit
+                fi
+        else
+            echo "${filestocopyarray[$i]} is not there, moving $CURRDIR/${filestocopyarray[$i]} to $(cat "$CONFDIR"/pathtopaste)"
+            cat "$CONFDIR"/pathtopaste > "$CONFDIR"/currentdir
+            echo 0 > $CONFDIR/cutclicked
+            # moving the file
+            mv $(echo $CURRDIR/${filestocopyarray[$i]}) $(cat "$CONFDIR"/pathtopaste)
+            sync
+        fi
+        i=$(( i+1 ))
+        sleep 0.3
+    done
+        (sleep 1 ; pkill -o -f "DFiles")&
+        exec dfiles $(echo $CURRDIR)
+    exit
+fi
+
+exit
